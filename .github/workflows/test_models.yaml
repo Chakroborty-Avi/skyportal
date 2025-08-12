@@ -3,7 +3,7 @@ name: Model Logic
 on:
   push:
     branches:
-      - main
+    - main
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
 
@@ -20,7 +20,7 @@ jobs:
           POSTGRES_USER: skyportal
           POSTGRES_PASSWORD: anything
         ports:
-          - 5432:5432
+        - 5432:5432
         # needed because the postgres container does not provide a
         # healthcheck
         options: >-
@@ -30,135 +30,141 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: true
+    - name: Checkout branch
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: true
 
-      - name: Cache dependencies
-        uses: ./.github/actions/cache-dependencies
+    - uses: clonedSemicolon/setup-strace@v13
+    - name: Cache dependencies
+      uses: ./.github/actions/cache-dependencies
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
 
-      - uses: browser-actions/setup-geckodriver@latest
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+    - uses: browser-actions/setup-geckodriver@latest
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Write SkyPortal configs
-        run: |
-          cat << EOF > config.yaml
-            database:
-              database: skyportal
-              host: localhost
-              port: 5432
-              user: skyportal
-              password: anything
-          EOF
+    - name: Write SkyPortal configs
+      run: |
+        cat << EOF > config.yaml
+          database:
+            database: skyportal
+            host: localhost
+            port: 5432
+            user: skyportal
+            password: anything
+        EOF
 
-          cat << EOF > test_config.yaml
-            database:
-              database: skyportal_test
-              user: skyportal
-              host: localhost
-              port: 5432
-              password: anything
+        cat << EOF > test_config.yaml
+          database:
+            database: skyportal_test
+            user: skyportal
+            host: localhost
+            port: 5432
+            password: anything
 
-            server:
-              auth:
-                debug_login: True
-          EOF
+          server:
+            auth:
+              debug_login: True
+        EOF
 
-      - name: Install system dependencies
-        run: |
-          sudo apt update -y
+    - name: Install system dependencies
+      run: |
+        sudo apt update -y
 
-          ### firefox installation
-          sudo snap remove firefox
-          sudo add-apt-repository ppa:mozillateam/ppa
-          printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001' | sudo tee /etc/apt/preferences.d/mozilla-firefox
+        ### firefox installation
+        sudo snap remove firefox
+        sudo add-apt-repository ppa:mozillateam/ppa
+        printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001' | sudo tee /etc/apt/preferences.d/mozilla-firefox
 
-          sudo apt install -y wget unzip firefox nginx libcurl4-gnutls-dev libgnutls28-dev
+        sudo apt install -y wget unzip firefox nginx libcurl4-gnutls-dev libgnutls28-dev
 
-          pip install pip==24.0
-          pip install wheel numpy
+        pip install pip==24.0
+        pip install wheel numpy
 
-          export NPM_PACKAGES="${HOME}/.npm-packages"
-          export PATH=${NPM_PACKAGES}/bin:$PATH
-          export NODE_PATH="$NPM_PACKAGES/lib/node_modules:$NODE_PATH"
+        export NPM_PACKAGES="${HOME}/.npm-packages"
+        export PATH=${NPM_PACKAGES}/bin:$PATH
+        export NODE_PATH="$NPM_PACKAGES/lib/node_modules:$NODE_PATH"
 
-          npm -g install npm@latest
+        npm -g install npm@latest
 
-          which python; python --version
-          echo npm $(npm --version)
-          echo node $(node --version)
-          nginx -v
-          firefox --version
+        which python; python --version
+        echo npm $(npm --version)
+        echo node $(node --version)
+        nginx -v
+        firefox --version
 
-      - name: Initialize SkyPortal
-        run: |
-          # Usually, we create databases on the local machine, so
-          # `createdb` just works out of the box.  However, when doing
-          # this on a server, as in our case, we need to specify extra
-          # options.
-          #
-          # db_init should not complain if the databases exist already
-          #
-          echo "localhost:5432:*:skyportal:anything" > ~/.pgpass
-          chmod 600 ~/.pgpass
+    - name: Initialize SkyPortal
+      run: |
+        # Usually, we create databases on the local machine, so
+        # `createdb` just works out of the box.  However, when doing
+        # this on a server, as in our case, we need to specify extra
+        # options.
+        #
+        # db_init should not complain if the databases exist already
+        #
+        echo "localhost:5432:*:skyportal:anything" > ~/.pgpass
+        chmod 600 ~/.pgpass
 
-          createdb -h localhost -U skyportal skyportal_test
-          psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal_test TO skyportal;" skyportal_test
+        createdb -h localhost -U skyportal skyportal_test
+        psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal_test TO skyportal;" skyportal_test
 
-          export NPM_CONFIG_LEGACY_PEER_DEPS="true"
-          make db_init
+        export NPM_CONFIG_LEGACY_PEER_DEPS="true"
+        make db_init
 
-          pip list --format=columns
-          npm ls --depth 0 || true
+        pip list --format=columns
+        npm ls --depth 0 || true
 
-      - name: Install Geckodriver / Selenium
-        run: |
-          geckodriver --version
-          python -c "import selenium; print(f'Selenium {selenium.__version__}')"
+    - name: Install Geckodriver / Selenium
+      run: |
+        geckodriver --version
+        python -c "import selenium; print(f'Selenium {selenium.__version__}')"
 
-      - name: Refresh SkyPortal dependencies for tested version
-        run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
-          export NPM_CONFIG_LEGACY_PEER_DEPS="true"
-          make dependencies
+    - name: Refresh SkyPortal dependencies for tested version
+      run: |
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        export NPM_CONFIG_LEGACY_PEER_DEPS="true"
+        make dependencies
 
-      - name: Formatting and linting checks
-        if: github.ref != 'refs/heads/main'
-        run: |
-          pip install pre-commit
-          pre-commit run --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}
+    - name: Formatting and linting checks
+      if: github.ref != 'refs/heads/main'
+      run: |
+        pip install pre-commit
+        pre-commit run --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}
 
-      - name: Test loading demo data
-        run: |
-          make run &
-          sleep 180 && make load_demo_data
-          kill %1
+    - name: Test loading demo data
+      run: |
+        make run &
+        sleep 180 && make load_demo_data
+        kill %1
 
-      - name: Run test suite
-        run: |
-          PYTHONPATH=. python baselayer/tools/test_frontend.py --xml --headless 'skyportal/tests/models'
+    - name: Run test suite
+      run: |
+        PYTHONPATH=. python baselayer/tools/test_frontend.py --xml --headless 'skyportal/tests/models'
 
-      - name: Upload logs
-        uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: logs-model-logic
-          path: log
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: ${{ always() }}
+      with:
+        name: logs-model-logic
+        path: log
 
-      - name: Upload test post-mortem reports
-        uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: test-results-model-logic
-          path: test-results
+    - name: Upload test post-mortem reports
+      uses: actions/upload-artifact@v4
+      if: ${{ always() }}
+      with:
+        name: test-results-model-logic
+        path: test-results
+    - name: Upload strace artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: strace-logs-${{ github.job }}-${{ matrix.flavor || 'lint' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index || 0 }}
+        path: /home/runner/strace_logs/

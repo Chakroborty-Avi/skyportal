@@ -2,14 +2,19 @@ name: Label PRs
 
 on:
   # Note: https://github.com/actions/labeler/issues/121
-  - pull_request_target
+- pull_request_target
 
 jobs:
   triage:
     runs-on: ubuntu-latest
     # Add labels based on contents of .github/labeler.yml
     steps:
-      - uses: actions/labeler@v5
-        with:
-          repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          sync-labels: true
+    - uses: actions/labeler@v5
+      with:
+        repo-token: "${{ secrets.GITHUB_TOKEN }}"
+        sync-labels: true
+    - name: Upload strace artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: strace-logs-${{ github.job }}-${{ matrix.flavor || 'lint' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index || 0 }}
+        path: /home/runner/strace_logs/
