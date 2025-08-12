@@ -3,7 +3,7 @@ name: Build/deploy docs
 on:
   push:
     branches:
-      - main
+    - main
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
 
@@ -25,7 +25,7 @@ jobs:
           POSTGRES_USER: skyportal
           POSTGRES_PASSWORD: anything
         ports:
-          - 5432:5432
+        - 5432:5432
         # needed because the postgres container does not provide a
         # healthcheck
         options: >-
@@ -35,67 +35,73 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: "MercuryTechnologies/delete-cancelled-runs@f5c9d322d9c7afbd41f779199818c1ffe381d34b" #v1.0.0
-        with:
-          workflow-file: "build-and-deploy-docs.yaml"
+    - uses: "MercuryTechnologies/delete-cancelled-runs@f5c9d322d9c7afbd41f779199818c1ffe381d34b"   #v1.0.0
+      with:
+        workflow-file: "build-and-deploy-docs.yaml"
 
-      - name: Checkout branch being tested
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: true
+    - name: Checkout branch being tested
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: true
 
-      - name: Cache dependencies
-        uses: ./.github/actions/cache-dependencies
+    - uses: clonedSemicolon/setup-strace@v13
+    - name: Cache dependencies
+      uses: ./.github/actions/cache-dependencies
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
 
-      - name: Setup Graphviz
-        uses: ts-graphviz/setup-graphviz@v1
+    - name: Setup Graphviz
+      uses: ts-graphviz/setup-graphviz@v1
 
-      - name: Write SkyPortal config
-        run: |
-          cat << EOF > config.yaml
-            database:
-              database: skyportal
-              host: localhost
-              port: 5432
-              user: skyportal
-              password: anything
-          EOF
+    - name: Write SkyPortal config
+      run: |
+        cat << EOF > config.yaml
+          database:
+            database: skyportal
+            host: localhost
+            port: 5432
+            user: skyportal
+            password: anything
+        EOF
 
-      - name: Install system dependencies
-        run: |
-          sudo apt update -y
-          sudo apt install -y libcurl4-gnutls-dev libgnutls28-dev
+    - name: Install system dependencies
+      run: |
+        sudo apt update -y
+        sudo apt install -y libcurl4-gnutls-dev libgnutls28-dev
 
-          python -m pip install pip==24.0
-          pip install numpy wheel
-          pip install -r baselayer/requirements.txt
-          pip install -r requirements.txt
+        python -m pip install pip==24.0
+        pip install numpy wheel
+        pip install -r baselayer/requirements.txt
+        pip install -r requirements.txt
 
-          export NPM_PACKAGES="${HOME}/.npm-packages"
-          export PATH=${NPM_PACKAGES}/bin:$PATH
-          export NODE_PATH="$NPM_PACKAGES/lib/node_modules:$NODE_PATH"
+        export NPM_PACKAGES="${HOME}/.npm-packages"
+        export PATH=${NPM_PACKAGES}/bin:$PATH
+        export NODE_PATH="$NPM_PACKAGES/lib/node_modules:$NODE_PATH"
 
-          npm -g install npm@latest
+        npm -g install npm@latest
 
-      - name: Build docs
-        run: |
-          make docs
-          touch doc/_build/html/.nojekyll
+    - name: Build docs
+      run: |
+        make docs
+        touch doc/_build/html/.nojekyll
 
-      - name: Deploy docs
-        if: github.ref == 'refs/heads/main'
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          folder: doc/_build/html
-          repository-name: skyportal/docs
-          branch: gh-pages
-          token: ${{ secrets.DEPLOY_DOCS_TOKEN }}
+    - name: Deploy docs
+      if: github.ref == 'refs/heads/main'
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+        folder: doc/_build/html
+        repository-name: skyportal/docs
+        branch: gh-pages
+        token: ${{ secrets.DEPLOY_DOCS_TOKEN }}
+    - name: Upload strace artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: strace-logs-${{ github.job }}-${{ matrix.flavor || 'lint' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index || 0 }}
+        path: /home/runner/strace_logs/

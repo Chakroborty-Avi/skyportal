@@ -5,19 +5,19 @@ on:
   # main
   push:
     branches:
-      - main
+    - main
   pull_request:
     paths:
-      - "baselayer"
-      - "skyportal/models.py"
-      - "skyportal/models/**"
-      - "alembic/versions/**"
-      - "skyportal/enum_types.py"
-      - "skyportal/facility_apis/__init__.py"
-      - "requirements.txt"
-      - ".github/workflows/test_migrations.yaml"
-      - ".github/actions/cache-dependencies/action.yaml"
-      - ".github/actions/cache-dependencies-save/action.yaml"
+    - "baselayer"
+    - "skyportal/models.py"
+    - "skyportal/models/**"
+    - "alembic/versions/**"
+    - "skyportal/enum_types.py"
+    - "skyportal/facility_apis/__init__.py"
+    - "requirements.txt"
+    - ".github/workflows/test_migrations.yaml"
+    - ".github/actions/cache-dependencies/action.yaml"
+    - ".github/actions/cache-dependencies-save/action.yaml"
     types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
           POSTGRES_USER: skyportal
           POSTGRES_PASSWORD: anything
         ports:
-          - 5432:5432
+        - 5432:5432
         # needed because the postgres container does not provide a
         # healthcheck
         options: >-
@@ -53,255 +53,263 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: main
-          submodules: true
+    - name: Checkout main
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: main
+        submodules: true
 
-      - name: Cache main dependencies
-        uses: ./.github/actions/cache-dependencies
-        with:
-          key-prefix: main
+    - uses: clonedSemicolon/setup-strace@v13
+    - name: Cache main dependencies
+      uses: ./.github/actions/cache-dependencies
+      with:
+        key-prefix: main
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
 
-      - name: Install system dependencies
-        run: |
-          sudo apt update -y
+    - name: Install system dependencies
+      run: |
+        sudo apt update -y
 
-          ### firefox installation
-          sudo snap remove firefox
-          sudo add-apt-repository ppa:mozillateam/ppa
-          printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001' | sudo tee /etc/apt/preferences.d/mozilla-firefox
+        ### firefox installation
+        sudo snap remove firefox
+        sudo add-apt-repository ppa:mozillateam/ppa
+        printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001' | sudo tee /etc/apt/preferences.d/mozilla-firefox
 
-          sudo apt install -y wget unzip firefox nginx libcurl4-gnutls-dev libgnutls28-dev libkrb5-dev
+        sudo apt install -y wget unzip firefox nginx libcurl4-gnutls-dev libgnutls28-dev libkrb5-dev
 
-          pip install pip==24.0
-          pip install wheel numpy
+        pip install pip==24.0
+        pip install wheel numpy
 
-          export NPM_PACKAGES="${HOME}/.npm-packages"
-          export PATH=${NPM_PACKAGES}/bin:$PATH
-          export NODE_PATH="$NPM_PACKAGES/lib/node_modules:$NODE_PATH"
+        export NPM_PACKAGES="${HOME}/.npm-packages"
+        export PATH=${NPM_PACKAGES}/bin:$PATH
+        export NODE_PATH="$NPM_PACKAGES/lib/node_modules:$NODE_PATH"
 
-          npm -g install npm@latest
+        npm -g install npm@latest
 
-          which python; python --version
-          echo npm $(npm --version)
-          echo node $(node --version)
-          nginx -v
-          firefox --version
+        which python; python --version
+        echo npm $(npm --version)
+        echo node $(node --version)
+        nginx -v
+        firefox --version
 
-      - name: Install SkyPortal dependencies
-        run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
-          # do not be so demanding of the npm packaging, needed until we get to mui 5
-          export NPM_CONFIG_LEGACY_PEER_DEPS="true"
-          make dependencies
+    - name: Install SkyPortal dependencies
+      run: |
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        # do not be so demanding of the npm packaging, needed until we get to mui 5
+        export NPM_CONFIG_LEGACY_PEER_DEPS="true"
+        make dependencies
 
-          pip install black
-          pip install fiona==1.9.6 # 1.10.0 breaks geopandas
-          pip install 'joblib<1.5.0' # 1.5.0 breaks skyportal/utils/offset.py on reference commit
-          pip install 'lalsuite<7.26' # 7.26 breaks ligo.skymap
-          pip install 'python-ligo-lw==1.8.4' # 2.0.0 breaks ligo.skymap
+        pip install black
+        pip install fiona==1.9.6 # 1.10.0 breaks geopandas
+        pip install 'joblib<1.5.0' # 1.5.0 breaks skyportal/utils/offset.py on reference commit
+        pip install 'lalsuite<7.26' # 7.26 breaks ligo.skymap
+        pip install 'python-ligo-lw==1.8.4' # 2.0.0 breaks ligo.skymap
 
-      - name: Save current Alembic head on main
-        run: |
-          # Get the head line from Alembic history output
-          head=$( PYTHONPATH=. alembic history | grep '(head)' )
+    - name: Save current Alembic head on main
+      run: |
+        # Get the head line from Alembic history output
+        head=$( PYTHONPATH=. alembic history | grep '(head)' )
 
-          # Split by space; index 2 should be latest revision
-          tokens=($head)
-          current_head=${tokens[2]}
-          echo ${current_head}
-          echo "CURRENT_HEAD=${current_head}" >> $GITHUB_ENV
+        # Split by space; index 2 should be latest revision
+        tokens=($head)
+        current_head=${tokens[2]}
+        echo ${current_head}
+        echo "CURRENT_HEAD=${current_head}" >> $GITHUB_ENV
 
-      - name: Save main branch cache
-        uses: ./.github/actions/cache-dependencies-save
-        with:
-          key-prefix: main
+    - name: Save main branch cache
+      uses: ./.github/actions/cache-dependencies-save
+      with:
+        key-prefix: main
 
-      - name: Checkout migration reference commit
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ env.MIGRATION_REFERENCE }}
-          submodules: true
+    - name: Checkout migration reference commit
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ env.MIGRATION_REFERENCE }}
+        submodules: true
 
-      - name: Write SkyPortal configs
-        run: |
-          cat << EOF > config.yaml
-            database:
-              database: skyportal
-              host: localhost
-              port: 5432
-              user: skyportal
-              password: anything
-          EOF
+    - uses: clonedSemicolon/setup-strace@v13
+    - name: Write SkyPortal configs
+      run: |
+        cat << EOF > config.yaml
+          database:
+            database: skyportal
+            host: localhost
+            port: 5432
+            user: skyportal
+            password: anything
+        EOF
 
-      - name: Initialize SkyPortal
-        run: |
-          # Usually, we create databases on the local machine, so
-          # `createdb` just works out of the box.  However, when doing
-          # this on a server, as in our case, we need to specify extra
-          # options.
-          #
-          # db_init should not complain if the databases exist already
-          #
-          echo "localhost:5432:*:skyportal:anything" > ~/.pgpass
-          chmod 600 ~/.pgpass
+    - name: Initialize SkyPortal
+      run: |
+        # Usually, we create databases on the local machine, so
+        # `createdb` just works out of the box.  However, when doing
+        # this on a server, as in our case, we need to specify extra
+        # options.
+        #
+        # db_init should not complain if the databases exist already
+        #
+        echo "localhost:5432:*:skyportal:anything" > ~/.pgpass
+        chmod 600 ~/.pgpass
 
-          createdb -h localhost -U skyportal skyportal_test
-          psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal_test TO skyportal;" skyportal_test
+        createdb -h localhost -U skyportal skyportal_test
+        psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal_test TO skyportal;" skyportal_test
 
-          export NPM_CONFIG_LEGACY_PEER_DEPS="true"
-          make db_init
+        export NPM_CONFIG_LEGACY_PEER_DEPS="true"
+        make db_init
 
-          pip list --format=columns
-          npm ls --depth 0
+        pip list --format=columns
+        npm ls --depth 0
 
-          # Stamp Alembic HEAD
-          PYTHONPATH=. alembic -x config=config.yaml stamp head
+        # Stamp Alembic HEAD
+        PYTHONPATH=. alembic -x config=config.yaml stamp head
 
-      - name: Test loading demo data
-        run: |
-          export NPM_CONFIG_LEGACY_PEER_DEPS="true"
-          make run &
-          sleep 180 && make load_demo_data
-          kill %1
+    - name: Test loading demo data
+      run: |
+        export NPM_CONFIG_LEGACY_PEER_DEPS="true"
+        make run &
+        sleep 180 && make load_demo_data
+        kill %1
 
-      - name: Checkout branch being tested
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: true
-          clean: false
+    - name: Checkout branch being tested
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: true
+        clean: false
 
-      - name: Cache dependencies
-        uses: ./.github/actions/cache-dependencies
+    - uses: clonedSemicolon/setup-strace@v13
+    - name: Cache dependencies
+      uses: ./.github/actions/cache-dependencies
 
-      - name: Check for migration branching
-        run: |
-          # First make sure the dependencies are up-to-date
-          npm i --legacy-peer-deps
-          make dependencies
-          # Make sure to remove python packages from the reference commit that conflict
-          # with the current branch (e.g pinecone-client that has later been renamed to pinecone).
-          pip uninstall -y pinecone pinecone-plugin-assistant pinecone-plugin-interface pinecone-client
-          # Make sure latest revision on main is included in Alembic history
-          n_current_head=$( PYTHONPATH=. alembic history | grep -c $CURRENT_HEAD )
-          if [[ $n_current_head -eq 0 ]]
-          then
-            cat << EOF
-              The current head Alembic revision on main is not present in this branch's
-              Alembic history. Please merge in the latest commit from main into this PR.
-          EOF
-            exit 1
-          else
-            echo "Alembic history includes the latest on main."
-          fi
+    - name: Check for migration branching
+      run: |
+        # First make sure the dependencies are up-to-date
+        npm i --legacy-peer-deps
+        make dependencies
+        # Make sure to remove python packages from the reference commit that conflict
+        # with the current branch (e.g pinecone-client that has later been renamed to pinecone).
+        pip uninstall -y pinecone pinecone-plugin-assistant pinecone-plugin-interface pinecone-client
+        # Make sure latest revision on main is included in Alembic history
+        n_current_head=$( PYTHONPATH=. alembic history | grep -c $CURRENT_HEAD )
+        if [[ $n_current_head -eq 0 ]]
+        then
+          cat << EOF
+            The current head Alembic revision on main is not present in this branch's
+            Alembic history. Please merge in the latest commit from main into this PR.
+        EOF
+          exit 1
+        else
+          echo "Alembic history includes the latest on main."
+        fi
 
-          # Make sure there are not multiple heads to the Alembic history
-          num_heads=$( PYTHONPATH=. alembic history | grep -c '(head)' )
-          if [[ $num_heads -ne 1 ]]
-          then
-            cat << EOF
-              There is more than one head revision in this branch's Alembic history.
-              Please resolve the branching revisions.
-          EOF
-            exit 1
-          else
-            echo "Alembic history has no conflicts in branch."
-          fi
+        # Make sure there are not multiple heads to the Alembic history
+        num_heads=$( PYTHONPATH=. alembic history | grep -c '(head)' )
+        if [[ $num_heads -ne 1 ]]
+        then
+          cat << EOF
+            There is more than one head revision in this branch's Alembic history.
+            Please resolve the branching revisions.
+        EOF
+          exit 1
+        else
+          echo "Alembic history has no conflicts in branch."
+        fi
 
-      - name: Run migration
-        run: |
-          # do not be so demanding of the npm packaging, needed until we get to mui 5
-          export NPM_CONFIG_LEGACY_PEER_DEPS="true"
-          # Update to latest dependencies
-          make dependencies
-          PYTHONPATH=. alembic -x config=config.yaml upgrade head
-          PYTHONPATH=. alembic current
+    - name: Run migration
+      run: |
+        # do not be so demanding of the npm packaging, needed until we get to mui 5
+        export NPM_CONFIG_LEGACY_PEER_DEPS="true"
+        # Update to latest dependencies
+        make dependencies
+        PYTHONPATH=. alembic -x config=config.yaml upgrade head
+        PYTHONPATH=. alembic current
 
-      - name: Check migration completeness with Alembic
-        run: |
-          # Try generating a new migration
-          PYTHONPATH=. alembic -x config=config.yaml revision --autogenerate -m "Test migration"
+    - name: Check migration completeness with Alembic
+      run: |
+        # Try generating a new migration
+        PYTHONPATH=. alembic -x config=config.yaml revision --autogenerate -m "Test migration"
 
-          # The generated migration should be empty if the migration script provided in the PR
-          # completely encompasses the changes in the database.
-          pass_lines=$( cat alembic/versions/*test_migration.py | grep -c pass ) || true
-          if [[ $pass_lines -ne 2 ]]
-          then
-            echo "Additional migrations needed: see the alembic-difference artifact."
-            exit 1
-          else
-            echo "All migrations included in script."
-          fi
+        # The generated migration should be empty if the migration script provided in the PR
+        # completely encompasses the changes in the database.
+        pass_lines=$( cat alembic/versions/*test_migration.py | grep -c pass ) || true
+        if [[ $pass_lines -ne 2 ]]
+        then
+          echo "Additional migrations needed: see the alembic-difference artifact."
+          exit 1
+        else
+          echo "All migrations included in script."
+        fi
 
-      - name: Create a fresh database
-        run: |
-          # Make new configs
-          cat << EOF > config.yaml
-            database:
-              database: skyportal2
-              host: localhost
-              port: 5432
-              user: skyportal
-              password: anything
-          EOF
+    - name: Create a fresh database
+      run: |
+        # Make new configs
+        cat << EOF > config.yaml
+          database:
+            database: skyportal2
+            host: localhost
+            port: 5432
+            user: skyportal
+            password: anything
+        EOF
 
-          createdb -h localhost -U skyportal skyportal2
-          psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal2 TO skyportal;" skyportal2
-          createdb -h localhost -U skyportal skyportal2_test
-          psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal2_test TO skyportal;" skyportal2_test
+        createdb -h localhost -U skyportal skyportal2
+        psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal2 TO skyportal;" skyportal2
+        createdb -h localhost -U skyportal skyportal2_test
+        psql -U skyportal -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE skyportal2_test TO skyportal;" skyportal2_test
 
-          export NPM_CONFIG_LEGACY_PEER_DEPS="true"
-          make db_init
+        export NPM_CONFIG_LEGACY_PEER_DEPS="true"
+        make db_init
 
-          make run &
-          sleep 60 && make load_demo_data
-          kill %1
-          PYTHONPATH=. alembic -x config=config.yaml stamp head
+        make run &
+        sleep 60 && make load_demo_data
+        kill %1
+        PYTHONPATH=. alembic -x config=config.yaml stamp head
 
-      - name: Compare databases with migra
-        run: |
-          pip install migra
+    - name: Compare databases with migra
+      run: |
+        pip install migra
 
-          # SQL needed to go from migrated database to fresh database
-          migra --unsafe postgresql://skyportal:anything@localhost:5432/skyportal postgresql://skyportal:anything@localhost:5432/skyportal2 > migra.sql || true
-          if [[ $(cat migra.sql | wc -l) -ne 0 ]]
-          then
-            echo "Differences found between migrated database and fresh database. See the migra-difference artifact."
-            exit 1
-          else
-            echo "Migrated database and fresh database match."
-          fi
+        # SQL needed to go from migrated database to fresh database
+        migra --unsafe postgresql://skyportal:anything@localhost:5432/skyportal postgresql://skyportal:anything@localhost:5432/skyportal2 > migra.sql || true
+        if [[ $(cat migra.sql | wc -l) -ne 0 ]]
+        then
+          echo "Differences found between migrated database and fresh database. See the migra-difference artifact."
+          exit 1
+        else
+          echo "Migrated database and fresh database match."
+        fi
 
-      - name: Upload logs
-        uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: logs-migration
-          path: log
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      if: ${{ always() }}
+      with:
+        name: logs-migration
+        path: log
 
-      - name: Upload the Alembic diff
-        uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: alembic-difference
-          path: alembic/versions/**test_migration.py
+    - name: Upload the Alembic diff
+      uses: actions/upload-artifact@v4
+      if: ${{ always() }}
+      with:
+        name: alembic-difference
+        path: alembic/versions/**test_migration.py
 
-      - name: Upload migra diff
-        uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: migra-difference
-          path: migra.sql
+    - name: Upload migra diff
+      uses: actions/upload-artifact@v4
+      if: ${{ always() }}
+      with:
+        name: migra-difference
+        path: migra.sql
+    - name: Upload strace artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: strace-logs-${{ github.job }}-${{ matrix.flavor || 'lint' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index || 0 }}
+        path: /home/runner/strace_logs/

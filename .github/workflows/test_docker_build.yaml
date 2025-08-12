@@ -3,8 +3,8 @@ name: Test Docker Build
 on:
   push:
     branches:
-      - main
-      - test-docker
+    - main
+    - test-docker
   pull_request:
     types: [labeled]
 
@@ -16,24 +16,30 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: true
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: true
 
-      - name: Build Docker image
-        run: |
-          make docker-local
+    - uses: clonedSemicolon/setup-strace@v13
+    - name: Build Docker image
+      run: |
+        make docker-local
 
-      - name: Start containers
-        run: |
-          docker compose up -d
+    - name: Start containers
+      run: |
+        docker compose up -d
 
-      - name: Test loading demo data
-        run: |
-          docker exec skyportal-web-1 bash -c 'source /skyportal_env/bin/activate && FLAGS="--create_tables --config=config.yaml" make load_demo_data'
+    - name: Test loading demo data
+      run: |
+        docker exec skyportal-web-1 bash -c 'source /skyportal_env/bin/activate && FLAGS="--create_tables --config=config.yaml" make load_demo_data'
+    - name: Upload strace artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: strace-logs-${{ github.job }}-${{ matrix.flavor || 'lint' }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index || 0 }}
+        path: /home/runner/strace_logs/
